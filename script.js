@@ -1,4 +1,5 @@
 let branch = "";
+let strength = 60;
 const today = new Date().toLocaleDateString('en-GB').replace(/\//g, "-");
 let viewingDate = today;
 
@@ -14,13 +15,14 @@ function getPeriod() {
         {s:1600, e:1700, n:"Extra"}
     ];
     const match = slots.find(s => time >= s.s && time < s.e);
-    return match ? { n: match.n, ok: match.ok !== false } : { n: "Closed", ok: false };
+    return match ? { n: match.n, ok: match.ok !== false } : { n: "College Closed", ok: false };
 }
 
 function initApp(b) {
     branch = b;
+    strength = parseInt(document.getElementById('classStrength').value) || 60;
     document.getElementById('branchOverlay').style.display = 'none';
-    document.getElementById('branchTitle').textContent = b + " Attendance";
+    document.getElementById('branchTitle').textContent = b + " Branch";
     document.getElementById('prefixLabel').textContent = `24054-${b}-`;
     document.getElementById('liveDate').textContent = new Date().toDateString();
     updateUI();
@@ -30,36 +32,60 @@ function initApp(b) {
 function updateUI() {
     const s = getPeriod();
     const b = document.getElementById('statusBanner');
-    b.textContent = "Current: " + s.n;
+    b.textContent = "Current Status: " + s.n;
     b.style.color = s.ok ? "#28a745" : "#dc3545";
     renderTable();
     renderHistory();
+    calculateAbsentees();
 }
 
 function markAttendance() {
     const input = document.getElementById('rollInput');
-    const pin = input.value.trim();
+    const pinVal = input.value.trim();
     const s = getPeriod();
-    if (!s.ok) return showToast("College Closed", true);
-    if (!/^[0-9]{3}$/.test(pin)) return showToast("Enter 3 digits", true);
+    if (!s.ok) return showToast("Attendance Locked: " + s.n, true);
+    if (!/^[0-9]{3}$/.test(pinVal)) return showToast("Enter 3 digits (e.g. 021)", true);
 
     const key = `gioe_${branch}_${today}`;
     let data = JSON.parse(localStorage.getItem(key)) || [];
-    const fullPin = `24054-${branch}-${pin}`;
+    const fullPin = `24054-${branch}-${pinVal}`;
 
     if (data.some(d => d.pin === fullPin && d.period === s.n)) {
-        showToast("Already marked!", true);
+        showToast("Already marked for " + s.n, true);
     } else {
-        data.unshift({ pin: fullPin, period: s.n, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
+        data.unshift({ id: Date.now(), pin: fullPin, period: s.n, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) });
         localStorage.setItem(key, JSON.stringify(data));
-        showToast("Marked " + pin);
+        showToast("Marked: " + pinVal);
+        viewingDate = today;
     }
     input.value = "";
-    renderTable();
-    renderHistory();
+    updateUI();
 }
 
-// THE FIX: SHARING LOGIC
+function deleteRow(id) {
+    const key = `gioe_${branch}_${viewingDate}`;
+    let data = JSON.parse(localStorage.getItem(key)) || [];
+    data = data.filter(item => item.id !== id);
+    localStorage.setItem(key, JSON.stringify(data));
+    updateUI();
+}
+
+function calculateAbsentees() {
+    const key = `gioe_${branch}_${viewingDate}`;
+    const logs = JSON.parse(localStorage.getItem(key)) || [];
+    const presentPins = logs.map(l => parseInt(l.pin.split('-').pop()));
+    const uniquePresent = [...new Set(presentPins)];
+    
+    let absentees = [];
+    for (let i = 1; i <= strength; i++) {
+        if (!uniquePresent.includes(i)) absentees.push(i.toString().padStart(3, '0'));
+    }
+    
+    document.getElementById('absenteeList').innerHTML = absentees.length > 0 
+        ? `<strong>Missing (${absentees.length}):</strong> ` + absentees.join(', ') 
+        : "Everyone is present!";
+}
+
 async function shareData(date) {
     const key = `gioe_${branch}_${date}`;
     const logs = JSON.parse(localStorage.getItem(key)) || [];
@@ -73,29 +99,47 @@ async function shareData(date) {
         text += `\n`;
     });
 
-    // Try Share Menu (WhatsApp/Drive)
     if (navigator.share) {
-        try {
-            await navigator.share({ title: 'Attendance', text: text });
-            return;
-        } catch (e) { /* Fallback if cancelled */ }
-    }
+        try { await navigator.share({ title: 'Attendance', text: text }); } 
+        catch (e) { copyFallback(text); }
+    } else { copyFallback(text); }
+}
 
-    // Fallback: Clipboard Copy (Works everywhere)
-    const dummy = document.createElement("textarea");
-    document.body.appendChild(dummy);
-    dummy.value = text;
-    dummy.select();
-    document.execCommand("copy");
-    document.body.removeChild(dummy);
-    showToast("📋 Copied to Clipboard! Open WhatsApp and Paste.", false);
+function downloadExcel() {
+    const key = `gioe_${branch}_${viewingDate}`;
+    const logs = JSON.parse(localStorage.getItem(key)) || [];
+    if (logs.length === 0) return showToast("Nothing to export", true);
+
+    let csv = "PIN,PERIOD,TIME\n";
+    logs.forEach(l => { csv += `${l.pin},${l.period},${l.time}\n`; });
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Attendance_${branch}_${viewingDate}.csv`;
+    a.click();
 }
 
 function renderTable() {
     const body = document.getElementById('attendanceTable');
     const logs = JSON.parse(localStorage.getItem(`gioe_${branch}_${viewingDate}`)) || [];
     document.getElementById('viewingDate').textContent = viewingDate === today ? "Today" : viewingDate;
-    body.innerHTML = logs.map(l => `<tr><td><b>${l.pin}</b></td><td>${l.period}</td><td>${l.time}</td></tr>`).join('') || "<tr><td colspan='3'>No records</td></tr>";
+    body.innerHTML = logs.map(l => `
+        <tr>
+            <td><b>${l.pin}</b></td>
+            <td>${l.period}</td>
+            <td>${l.time}</td>
+            <td><i class="fas fa-trash-alt row-del" onclick="deleteRow(${l.id})"></i></td>
+        </tr>
+    `).join('') || "<tr><td colspan='4' align='center'>No records found</td></tr>";
+}
+
+function filterHistory() {
+    const q = document.getElementById('historySearch').value.toLowerCase();
+    document.querySelectorAll('.history-item').forEach(item => {
+        item.style.display = item.textContent.toLowerCase().includes(q) ? 'flex' : 'none';
+    });
 }
 
 function renderHistory() {
@@ -106,19 +150,24 @@ function renderHistory() {
         const d = k.replace(prefix, "");
         const div = document.createElement('div');
         div.className = "history-item";
-        div.innerHTML = `<span onclick="view('${d}')">${d.replace(/-/g,"/")}</span><i class="fas fa-share-nodes share-btn" onclick="shareData('${d}')"></i>`;
+        div.innerHTML = `<span onclick="viewDate('${d}')">${d.replace(/-/g,"/")}/span><i class="fas fa-share-nodes share-btn" onclick="shareData('${d}')"></i>`;
         list.appendChild(div);
     });
 }
 
-function view(d) { viewingDate = d; renderTable(); toggleSidebar(); }
+function viewDate(d) { viewingDate = d; updateUI(); toggleSidebar(); }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('active'); }
 function showToast(m, err) {
     const t = document.getElementById('toast');
-    t.textContent = m; t.style.background = err ? "#dc3545" : "#28a745";
+    t.textContent = m; t.style.background = err ? "var(--error)" : "var(--success)";
     t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 3000);
 }
-function clearDate() { localStorage.removeItem(`gioe_${branch}_${viewingDate}`); renderTable(); renderHistory(); }
+function copyFallback(t) {
+    const el = document.createElement('textarea'); el.value = t; document.body.appendChild(el);
+    el.select(); document.execCommand('copy'); document.body.removeChild(el);
+    showToast("📋 Copied to Clipboard!");
+}
+function clearDate() { if(confirm("Delete all records for this day?")) { localStorage.removeItem(`gioe_${branch}_${viewingDate}`); updateUI(); } }
 
 document.getElementById('submitBtn').onclick = markAttendance;
 document.getElementById('rollInput').onkeypress = (e) => { if(e.key==='Enter') markAttendance(); };
