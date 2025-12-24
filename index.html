@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIOE Attendance Portal</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+
+    <div id="branchOverlay" class="overlay">
+        <div class="selection-box">
+            <h2>GIOE ATTENDANCE</h2>
+            <div class="grid">
+                <button onclick="initApp('CPS')">CPS</button>
+                <button onclick="initApp('BME')">BME</button>
+                <button onclick="initApp('ECE')">ECE</button>
+                <button onclick="initApp('CSE')">CSE</button>
+                <button onclick="initApp('CCB')">CCB</button>
+                <button onclick="initApp('ESE')">ESE</button>
+                <button onclick="initApp('EIE')">EIE</button>
+                <button onclick="initApp('AIML')">AIML</button>
+                <button onclick="initApp('EVE')">EVE</button>
+            </div>
+        </div>
+    </div>
+
+    <nav class="navbar">
+        <div class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></div>
+        <div class="nav-info">
+            <h1 id="branchTitle">Portal</h1>
+            <small id="liveDate"></small>
+        </div>
+        <button class="switch-btn" onclick="location.reload()">Switch</button>
+    </nav>
+
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Attendance History</h3>
+            <span onclick="toggleSidebar()" class="close-x">&times;</span>
+        </div>
+        <div id="historyList"></div>
+    </div>
+
+    <main class="container">
+        <div id="statusBanner" class="status-banner">Checking...</div>
+
+        <div class="card">
+            <div class="input-group">
+                <span class="prefix" id="prefixLabel">PIN:</span>
+                <input type="text" id="rollInput" placeholder="000" maxlength="3" inputmode="numeric">
+                <button id="submitBtn">MARK</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="table-header">
+                <h3 id="viewingDate">Today</h3>
+                <button onclick="clearDate()" class="del-btn">Clear</button>
+            </div>
+            <table>
+                <thead><tr><th>PIN</th><th>PERIOD</th><th>TIME</th></tr></thead>
+                <tbody id="attendanceTable"></tbody>
+            </table>
+        </div>
+    </main>
+
+    <div id="toast" class="toast"></div>
+    <script src="script.js"></script>
+</body>
+</html>
