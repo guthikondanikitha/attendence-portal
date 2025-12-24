@@ -1,47 +1,101 @@
-:root { --primary: #002b5b; --accent: #007bff; --success: #28a745; --error: #dc3545; --bg: #f0f2f5; }
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-body { background: var(--bg); }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIOE Pro Attendance</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
 
-.navbar { background: var(--primary); color: white; padding: 15px 20px; display: flex; align-items: center; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-.menu-btn { font-size: 1.4rem; cursor: pointer; margin-right: 15px; }
-.nav-info { flex: 1; }
-.switch-btn { background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+    <div id="branchOverlay" class="overlay">
+        <div class="glass-card">
+            <div class="glass-header">
+                <i class="fas fa-university"></i>
+                <h2>GIOE Portal</h2>
+                <p>Select Department & Class Strength</p>
+            </div>
+            
+            <div class="branch-grid">
+                <button class="branch-tile" onclick="initApp('CPS')">CPS</button>
+                <button class="branch-tile" onclick="initApp('BME')">BME</button>
+                <button class="branch-tile" onclick="initApp('ECE')">ECE</button>
+                <button class="branch-tile" onclick="initApp('CSE')">CSE</button>
+                <button class="branch-tile" onclick="initApp('CCB')">CCB</button>
+                <button class="branch-tile" onclick="initApp('ESE')">ESE</button>
+                <button class="branch-tile" onclick="initApp('EIE')">EIE</button>
+                <button class="branch-tile" onclick="initApp('AIML')">AIML</button>
+                <button class="branch-tile" onclick="initApp('EVE')">EVE</button>
+            </div>
 
-.sidebar { position: fixed; left: -300px; top: 0; height: 100%; width: 280px; background: white; z-index: 2000; transition: 0.3s; padding: 20px; box-shadow: 5px 0 15px rgba(0,0,0,0.1); }
-.sidebar.active { left: 0; }
-.sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-#historySearch { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; }
+            <div class="config-footer">
+                <label>Roll Limit:</label>
+                <input type="number" id="classStrength" value="100" min="1" max="150">
+            </div>
+        </div>
+    </div>
 
-.history-item { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid var(--primary); }
-.history-item span { cursor: pointer; font-weight: 500; flex: 1; }
-.share-btn { color: var(--accent); cursor: pointer; padding: 5px; }
+    <nav class="navbar">
+        <div class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></div>
+        <div class="nav-info">
+            <h1 id="branchTitle">Portal</h1>
+            <small id="liveDate"></small>
+        </div>
+        <button class="switch-btn" onclick="location.reload()">Switch</button>
+    </nav>
 
-.container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
-.status-banner { background: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 20px; font-weight: bold; font-size: 1.1rem; }
+    <div id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h3>Attendance Logs</h3>
+            <span onclick="toggleSidebar()" class="close-x">&times;</span>
+        </div>
+        <input type="text" id="historySearch" placeholder="Search date (DD-MM)..." onkeyup="filterHistory()">
+        <div id="historyList"></div>
+    </div>
 
-.card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-.input-group { display: flex; border: 2px solid #ddd; border-radius: 10px; overflow: hidden; }
-.prefix { background: #eee; padding: 15px; font-weight: bold; border-right: 1px solid #ddd; }
-input { flex: 1; border: none; padding: 15px; outline: none; font-size: 1.2rem; }
-#submitBtn { background: var(--primary); color: white; border: none; padding: 0 25px; cursor: pointer; font-weight: bold; }
+    <main class="container">
+        <div id="statusBanner" class="status-banner">Checking Schedule...</div>
 
-.table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-.excel-btn { background: #1d6f42; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-.del-btn { color: var(--error); background: none; border: none; cursor: pointer; text-decoration: underline; font-size: 0.8rem; }
+        <div class="card">
+            <div class="input-group">
+                <span class="prefix" id="prefixLabel">PIN:</span>
+                <input type="text" id="rollInput" placeholder="000" maxlength="3" inputmode="numeric">
+                <button id="submitBtn">MARK</button>
+            </div>
+        </div>
 
-.table-responsive { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 400px; }
-th, td { padding: 12px; text-align: left; border-bottom: 1px solid #f0f0f0; }
-th { font-size: 0.75rem; color: #888; text-transform: uppercase; }
-.row-del { color: #ccc; cursor: pointer; }
-.row-del:hover { color: var(--error); }
+        <div class="card">
+            <div class="table-header">
+                <h3 id="viewingDate">Today</h3>
+                <div class="actions">
+                    <button onclick="downloadExcel()" class="excel-btn"><i class="fas fa-file-excel"></i> Excel</button>
+                    <button onclick="clearDate()" class="del-btn">Clear All</button>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>PIN</th>
+                            <th>PERIOD</th>
+                            <th>TIME</th>
+                            <th>DEL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTable"></tbody>
+                </table>
+            </div>
+        </div>
 
-.absentee-card h3 { color: var(--error); font-size: 1rem; margin-bottom: 10px; }
-#absenteeList { font-size: 0.9rem; color: #666; line-height: 1.5; }
+        <div class="card absentee-card">
+            <h3><i class="fas fa-user-slash"></i> Absentee List</h3>
+            <p id="absenteeList">No data yet...</p>
+        </div>
+    </main>
 
-.overlay { position: fixed; inset: 0; background: var(--primary); z-index: 3000; display: flex; align-items: center; justify-content: center; }
-.selection-box { background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 400px; text-align: center; }
-.config-input { margin-top: 20px; padding-top: 15px; border-top: 1px solid #eee; }
-.config-input input { border: 1px solid #ddd; width: 80px; padding: 5px; border-radius: 4px; text-align: center; }
+    <div id="toast" class="toast"></div>
 
-.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); padding: 12px 25px; border-radius: 50px; color: white; display: none; z-index: 4000; box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+    <script src="script.js"></script>
+</body>
+</html>
