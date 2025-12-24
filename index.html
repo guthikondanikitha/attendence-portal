@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GIOE Attendance Portal</title>
+    <title>GIOE Pro Attendance</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -12,6 +12,7 @@
     <div id="branchOverlay" class="overlay">
         <div class="selection-box">
             <h2>GIOE ATTENDANCE</h2>
+            <p>Select Branch & Total Students</p>
             <div class="grid">
                 <button onclick="initApp('CPS')">CPS</button>
                 <button onclick="initApp('BME')">BME</button>
@@ -22,6 +23,10 @@
                 <button onclick="initApp('EIE')">EIE</button>
                 <button onclick="initApp('AIML')">AIML</button>
                 <button onclick="initApp('EVE')">EVE</button>
+            </div>
+            <div class="config-input">
+                <label>Class Strength:</label>
+                <input type="number" id="classStrength" value="60" min="1">
             </div>
         </div>
     </div>
@@ -37,9 +42,10 @@
 
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
-            <h3>Attendance History</h3>
+            <h3>History</h3>
             <span onclick="toggleSidebar()" class="close-x">&times;</span>
         </div>
+        <input type="text" id="historySearch" placeholder="Search date..." onkeyup="filterHistory()">
         <div id="historyList"></div>
     </div>
 
@@ -57,12 +63,22 @@
         <div class="card">
             <div class="table-header">
                 <h3 id="viewingDate">Today</h3>
-                <button onclick="clearDate()" class="del-btn">Clear</button>
+                <div class="actions">
+                    <button onclick="downloadExcel()" class="excel-btn"><i class="fas fa-file-excel"></i> Excel</button>
+                    <button onclick="clearDate()" class="del-btn">Clear All</button>
+                </div>
             </div>
-            <table>
-                <thead><tr><th>PIN</th><th>PERIOD</th><th>TIME</th></tr></thead>
-                <tbody id="attendanceTable"></tbody>
-            </table>
+            <div class="table-responsive">
+                <table>
+                    <thead><tr><th>PIN</th><th>PERIOD</th><th>TIME</th><th>ACTION</th></tr></thead>
+                    <tbody id="attendanceTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card absentee-card">
+            <h3>Absentee Analysis</h3>
+            <p id="absenteeList">Mark some students to see absentees...</p>
         </div>
     </main>
 
