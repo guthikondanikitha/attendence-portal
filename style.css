@@ -9,11 +9,19 @@
 * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
 body { background: var(--bg); color: #333; }
 
-/* Dashboard Selection Page */
+/* Dashboard Selection Overlay */
 .overlay {
     position: fixed; inset: 0; background: #f8f9fc; z-index: 3000;
     display: flex; flex-direction: column; align-items: center;
-    padding: 40px 20px; overflow-y: auto; transition: transform 0.6s ease-in-out, opacity 0.5s;
+    padding: 40px 20px; overflow-y: auto; transition: transform 0.4s ease-in-out, opacity 0.3s;
+}
+
+.welcome-container {
+    width: 100%;
+    max-width: 450px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .welcome-header { text-align: center; margin-bottom: 30px; }
@@ -25,7 +33,7 @@ body { background: var(--bg); color: #333; }
 
 .department-selection {
     display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
-    width: 100%; max-width: 450px;
+    width: 100%; margin-bottom: 25px;
 }
 
 .dept-card {
@@ -38,48 +46,52 @@ body { background: var(--bg); color: #333; }
 .dept-card:hover { transform: translateY(-5px); border-color: var(--accent); box-shadow: 0 10px 20px rgba(0,0,0,0.05); }
 
 .setup-bar {
-    margin-top: 30px; background: white; padding: 12px 20px;
+    background: white; padding: 12px 20px;
     border-radius: 50px; display: flex; align-items: center; gap: 10px;
     box-shadow: 0 4px 10px rgba(0,0,0,0.05);
 }
+.setup-bar input { width: 60px; border: 1px solid #cbd5e0; border-radius: 5px; text-align: center; font-weight: bold; padding: 4px; }
 
-.setup-bar input { width: 50px; border: 1px solid #cbd5e0; border-radius: 5px; text-align: center; font-weight: bold; }
-
-/* Navbar & General UI */
+/* Navbar & General UI Layouts */
 .navbar { background: var(--primary); color: white; padding: 15px 20px; display: flex; align-items: center; position: sticky; top: 0; z-index: 1000; }
 .menu-btn { font-size: 1.2rem; cursor: pointer; margin-right: 15px; }
 .nav-info { flex: 1; }
 .switch-btn { background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
 
+/* Structural Dynamic Sidebar */
 .sidebar { position: fixed; left: -300px; top: 0; height: 100%; width: 280px; background: white; z-index: 2000; transition: 0.3s; padding: 20px; box-shadow: 5px 0 15px rgba(0,0,0,0.1); }
 .sidebar.active { left: 0; }
 .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.close-x { font-size: 1.5rem; cursor: pointer; color: #555; }
+#historySearch { width: 100%; border: 1px solid #ddd; border-radius: 6px; padding: 10px; margin-bottom: 15px; outline: none; }
 
 .history-item { display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 8px; border-left: 4px solid var(--primary); }
-.share-btn { color: var(--accent); cursor: pointer; }
+.share-btn { color: var(--accent); cursor: pointer; padding: 5px; }
 
 .container { max-width: 500px; margin: 20px auto; padding: 0 15px; }
-.status-banner { background: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px; font-weight: bold; }
+.status-banner { background: white; padding: 15px; border-radius: 10px; text-align: center; margin-bottom: 15px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
 
 .card { background: white; padding: 20px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-.input-group { display: flex; border: 2px solid #ddd; border-radius: 10px; overflow: hidden; }
-.prefix { background: #eee; padding: 15px; font-weight: bold; }
+.input-group { display: flex; border: 2px solid #ddd; border-radius: 10px; overflow: hidden; background: white; }
+.prefix { background: #eee; padding: 15px; font-weight: bold; color: #555; }
 input { flex: 1; border: none; padding: 15px; outline: none; font-size: 1.1rem; }
-#submitBtn { background: var(--primary); color: white; border: none; padding: 0 20px; cursor: pointer; font-weight: bold; }
+#submitBtn { background: var(--primary); color: white; border: none; padding: 0 20px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+#submitBtn:hover { background: var(--accent); }
 
 .table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.excel-btn { background: #1d6f42; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; }
+.excel-btn { background: #1d6f42; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; gap: 4px; }
 .del-btn { color: var(--error); background: none; border: none; cursor: pointer; font-size: 0.8rem; text-decoration: underline; }
 
-.table-responsive { overflow-x: auto; }
+.table-responsive { overflow-x: auto; margin-top: 10px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 12px 8px; text-align: left; border-bottom: 1px solid #eee; font-size: 0.9rem; }
-.row-del { color: #ccc; cursor: pointer; }
+th { background: #f8f9fa; color: #555; font-weight: 600; }
+.row-del { color: #aaa; cursor: pointer; transition: color 0.2s; }
+.row-del:hover { color: var(--error); }
 
-.absentee-card h3 { font-size: 1rem; color: var(--error); margin-bottom: 10px; }
-#absenteeList { font-size: 0.85rem; color: #555; line-height: 1.6; }
+.absentee-card h3 { font-size: 1rem; color: var(--error); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+#absenteeList { font-size: 0.85rem; color: #555; line-height: 1.6; word-break: break-word; }
 
-.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); padding: 12px 25px; border-radius: 50px; color: white; display: none; z-index: 4000; }
+.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); padding: 12px 25px; border-radius: 50px; color: white; display: none; z-index: 4000; font-weight: 500; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
 
 @media (max-width: 400px) { .department-selection { grid-template-columns: repeat(2, 1fr); } }
-
