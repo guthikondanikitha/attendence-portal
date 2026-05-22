@@ -1,25 +1,22 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GIOE Attendance Pro</title>
+    <title>GIOE Attendance Pro - Local Edition</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 <body>
 
     <div id="branchOverlay" class="overlay">
         <div class="welcome-container">
             <header class="welcome-header">
-                <div class="logo-circle">
-                    <i class="fas fa-clipboard-check"></i>
-                </div>
+                <div class="logo-circle"><i class="fas fa-clipboard-check"></i></div>
                 <h2>GIOE ATTENDANCE</h2>
-                <p>Select a department to manage records</p>
+                <p>Select Department & Class Strength</p>
             </header>
-
             <div class="department-selection">
                 <div class="dept-card" onclick="initApp('CPS')"><i class="fas fa-microchip"></i><span>CPS</span></div>
                 <div class="dept-card" onclick="initApp('BME')"><i class="fas fa-heartbeat"></i><span>BME</span></div>
@@ -31,59 +28,114 @@
                 <div class="dept-card" onclick="initApp('AIML')"><i class="fas fa-brain"></i><span>AIML</span></div>
                 <div class="dept-card" onclick="initApp('EVE')"><i class="fas fa-car-battery"></i><span>EVE</span></div>
             </div>
-
             <div class="setup-bar">
                 <span>Class Strength:</span>
-                <input type="number" id="classStrength" value="100" min="1" max="150">
+                <input type="number" id="classStrength" value="60" min="1" max="150">
             </div>
         </div>
     </div>
 
     <nav class="navbar">
-        <div class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></div>
-        <div class="nav-info">
-            <h1 id="branchTitle">Portal</h1>
-            <small id="liveDate"></small>
+        <div class="nav-left">
+            <div class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></div>
+            <div class="nav-info">
+                <h1 id="branchTitle">Portal</h1>
+                <small id="liveDate"></small>
+            </div>
         </div>
-        <button class="switch-btn" onclick="resetApp()">Switch</button>
+        <div class="nav-right">
+            <button onclick="toggleDarkMode()" class="icon-btn" id="themeBtn"><i class="fas fa-moon"></i></button>
+            <button class="switch-btn" onclick="switchBranch()">Switch Class</button>
+        </div>
     </nav>
 
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
-            <h3>History Logs</h3>
+            <h3>Saved Logs (This Device)</h3>
             <span onclick="toggleSidebar()" class="close-x">&times;</span>
         </div>
-        <input type="text" id="historySearch" placeholder="Search date (DD-MM-YYYY)..." onkeyup="filterHistory()">
+        <input type="text" id="historySearch" placeholder="Search saved dates..." onkeyup="filterHistory()">
         <div id="historyList"></div>
     </div>
 
     <main class="container">
-        <div id="statusBanner" class="status-banner">System Active</div>
+        
+        <div class="card analytics-card">
+            <h3><i class="fas fa-chart-pie"></i> Session Insights</h3>
+            <div class="metrics-grid">
+                <div class="metric-block">
+                    <span class="metric-label">Attendance Rate</span>
+                    <h2 id="metricPercentage">0%</h2>
+                </div>
+                <div class="metric-block">
+                    <span class="metric-label">Present Count</span>
+                    <h2 id="metricRatio">0 / 0</h2>
+                </div>
+            </div>
+            <div class="progress-wrapper">
+                <div id="analyticsProgressBar" class="progress-bar"></div>
+            </div>
+            <div id="highRiskAlert" class="risk-alert" style="display:none;"></div>
+        </div>
 
-        <div class="card">
-            <div class="input-group">
-                <span class="prefix" id="prefixLabel">PIN:</span>
-                <input type="text" id="rollInput" placeholder="000" maxlength="3" inputmode="numeric">
-                <button id="submitBtn" onclick="markAttendance()">MARK</button>
+        <div class="card configuration-control-card">
+            <div class="control-grid">
+                <div>
+                    <label for="periodDropdown">Active Period/Hour:</label>
+                    <select id="periodDropdown" onchange="updateUI()">
+                        <option value="Period 1">Period 1 (09:00 AM)</option>
+                        <option value="Period 2">Period 2 (10:00 AM)</option>
+                        <option value="Period 3">Period 3 (11:00 AM)</option>
+                        <option value="Period 4">Period 4 (01:00 PM)</option>
+                        <option value="Period 5">Period 5 (02:00 PM)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="subjectInput">Course Subject Name:</label>
+                    <input type="text" id="subjectInput" value="Engineering Class" onchange="persistSubject()">
+                </div>
             </div>
         </div>
 
-        <div class="card">
+        <div class="tabs-navigation">
+            <button class="tab-btn active" id="tabManual" onclick="switchInputMode('manual')"><i class="fas fa-keyboard"></i> Single PIN</button>
+            <button class="tab-btn" id="tabGrid" onclick="switchInputMode('grid')"><i class="fas fa-th"></i> Mass Grid</button>
+            <button class="tab-btn" id="tabScanner" onclick="switchInputMode('scanner')"><i class="fas fa-qrcode"></i> Camera Scan</button>
+        </div>
+
+        <div id="modeManualInput" class="card mode-container">
+            <div class="input-group">
+                <span class="prefix" id="prefixLabel">PIN:</span>
+                <input type="text" id="rollInput" placeholder="000" maxlength="3" inputmode="numeric">
+                <button id="submitBtn" onclick="markManualAttendance()">MARK</button>
+            </div>
+        </div>
+
+        <div id="modeGridInput" class="card mode-container" style="display:none;">
+            <p style="font-size:0.85rem; margin-bottom: 10px; color:#777;">Tap student numbers to mark them present for this period:</p>
+            <div id="massCheckboxGrid" class="checkbox-grid-layout"></div>
+            <button onclick="submitMassGridAttendance()" class="save-grid-btn"><i class="fas fa-save"></i> Save Grid Selection</button>
+        </div>
+
+        <div id="modeScannerInput" class="card mode-container" style="display:none;">
+            <div id="qrReaderView"></div>
+            <p class="scanner-tip">Align a student QR code containing their 3-digit PIN inside the scanner frame box.</p>
+        </div>
+
+        <div class="card ledger-card">
             <div class="table-header">
                 <h3 id="viewingDateLabel">Today</h3>
-                <div class="actions">
-                    <button onclick="downloadExcel()" class="excel-btn"><i class="fas fa-file-excel"></i> Excel</button>
-                    <button onclick="clearDate()" class="del-btn">Clear All</button>
-                </div>
+                <button onclick="downloadExcel()" class="excel-btn"><i class="fas fa-file-excel"></i> Export Excel</button>
             </div>
             <div class="table-responsive">
                 <table>
                     <thead>
                         <tr>
                             <th>PIN</th>
+                            <th>SUBJECT</th>
                             <th>PERIOD</th>
                             <th>TIME</th>
-                            <th>DEL</th>
+                            <th>ACTION</th>
                         </tr>
                     </thead>
                     <tbody id="attendanceTable"></tbody>
@@ -92,8 +144,8 @@
         </div>
 
         <div class="card absentee-card">
-            <h3><i class="fas fa-user-slash"></i> Absentees</h3>
-            <p id="absenteeList">Mark attendance to see missing students...</p>
+            <h3><i class="fas fa-user-slash"></i> Absentees (Selected Period)</h3>
+            <p id="absenteeList">No check-ins generated yet.</p>
         </div>
     </main>
 
