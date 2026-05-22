@@ -1,263 +1,374 @@
-
 let branch = "";
-let strength = 100;
+let strength = 60;
 const today = new Date().toLocaleDateString('en-GB').replace(/\//g, "-");
 let viewingDate = today;
+let qrScannerInstance = null;
+let activeMode = "manual";
 
 window.onload = function() {
     document.getElementById('liveDate').textContent = today;
+    evaluateThemeOnLoad();
+    restoreSavedSession();
+
+    // Wire single input fields manual submit
+    document.getElementById('rollInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') markManualAttendance();
+    });
+};
+
+function restoreSavedSession() {
+    const savedBranch = localStorage.getItem('gioe_local_branch');
+    const savedStrength = localStorage.getItem('gioe_local_strength');
+    const savedSubject = localStorage.getItem('gioe_local_subject');
     
-    // Check if configuration parameters exist from past execution states
-    const savedBranch = localStorage.getItem('lastBranch');
-    const savedStrength = localStorage.getItem('lastStrength');
+    if(savedSubject) document.getElementById('subjectInput').value = savedSubject;
     
     if (savedBranch && savedStrength) {
         document.getElementById('classStrength').value = savedStrength;
         initApp(savedBranch);
+    } else {
+        document.getElementById('branchOverlay').style.display = 'flex';
     }
-    
-    // Wire up Enter Key Press listeners to prompt quick logging manually
-    document.getElementById('rollInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            markAttendance();
-        }
-    });
-};
-
-function getPeriod() {
-    const hours = new Date().getHours();
-    // Simplified period logic block mapping current system operating hour limits
-    if (hours >= 9 && hours < 10) return { ok: true, n: "Period 1" };
-    if (hours >= 10 && hours < 11) return { ok: true, n: "Period 2" };
-    if (hours >= 11 && hours < 12) return { ok: true, n: "Period 3" };
-    if (hours >= 13 && hours < 14) return { ok: true, n: "Period 4" };
-    if (hours >= 14 && hours < 16) return { ok: true, n: "Period 5" };
-    return { ok: true, n: "General Session" }; // Always default fallback rather than blocking interaction
 }
 
-function initApp(selectedBranch) {
-    branch = selectedBranch;
-    strength = parseInt(document.getElementById('classStrength').value) || 100;
+function initApp(chosenBranch) {
+    branch = chosenBranch;
+    strength = parseInt(document.getElementById('classStrength').value) || 60;
     
-    localStorage.setItem('lastBranch', branch);
-    localStorage.setItem('lastStrength', strength);
+    localStorage.setItem('gioe_local_branch', branch);
+    localStorage.setItem('gioe_local_strength', strength);
 
     const overlay = document.getElementById('branchOverlay');
     overlay.style.transform = "translateY(-100%)";
-    overlay.style.opacity = "0";
-    setTimeout(() => { overlay.style.display = 'none'; }, 600);
+    setTimeout(() => { overlay.style.display = 'none'; }, 400);
 
-    document.getElementById('branchTitle').textContent = branch + " Branch";
+    document.getElementById('branchTitle').textContent = `${branch} Branch`;
     document.getElementById('prefixLabel').textContent = `${branch}-`;
     document.getElementById('viewingDateLabel').textContent = viewingDate;
     
     updateUI();
-    buildHistory();
+    buildLocalHistoryList();
 }
 
-function resetApp() {
-    localStorage.removeItem('lastBranch');
+function switchBranch() {
+    localStorage.removeItem('gioe_local_branch');
     location.reload();
 }
 
-function markAttendance() {
-    const inputField = document.getElementById('rollInput');
-    const pinVal = inputField.value.trim().padStart(3, '0');
-    
-    if (pinVal === "000" || inputField.value.trim() === "") {
-        return showToast("Enter a valid PIN", true);
-    }
-
-    const sessionInfo = getPeriod();
-    if (!sessionInfo.ok) return showToast("Locked: " + sessionInfo.n, true);
-    if (!/^[0-9]{3}$/.test(pinVal)) return showToast("Enter 3 digits", true);
-    
-    if (parseInt(pinVal) > strength) {
-        return showToast(`Invalid PIN (Limit: ${strength})`, true);
-    }
-
-    const key = `gioe_${branch}_${today}`;
-    let data = JSON.parse(localStorage.getItem(key)) || [];
-
-    // Verify duplication conditions across current working array space
-    if (data.some(entry => entry.pin === pinVal && entry.period === sessionInfo.n)) {
-        return showToast("PIN already marked for this period!", true);
-    }
-
-    const timestamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-    
-    data.push({
-        pin: pinVal,
-        period: sessionInfo.n,
-        time: timestamp
-    });
-
-    localStorage.setItem(key, JSON.stringify(data));
-    inputField.value = "";
-    showToast(`Marked PIN ${pinVal}`);
-    updateUI();
+function persistSubject() {
+    localStorage.setItem('gioe_local_subject', document.getElementById('subjectInput').value);
 }
 
-function updateUI() {
-    const key = `gioe_${branch}_${viewingDate}`;
-    const data = JSON.parse(localStorage.getItem(key)) || [];
-    const tableBody = document.getElementById('attendanceTable');
-    
-    tableBody.innerHTML = "";
-    
-    data.forEach((item, index) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td><strong>${item.pin}</strong></td>
-            <td>${item.period}</td>
-            <td>${item.time}</td>
-            <td><i class="fas fa-trash row-del" onclick="deleteRecord(${index})"></i></td>
-        `;
-        tableBody.appendChild(row);
-    });
-
-    calculateAbsentees(data);
-    document.getElementById('statusBanner').textContent = `Total Submissions Today: ${data.length}`;
+function getStorageKey() {
+    return `gioe_data_${branch}_${viewingDate}`;
 }
 
-function deleteRecord(index) {
-    const key = `gioe_${branch}_${viewingDate}`;
-    let data = JSON.parse(localStorage.getItem(key)) || [];
-    data.splice(index, 1);
-    localStorage.setItem(key, JSON.stringify(data));
-    updateUI();
-    showToast("Record dropped successfully");
+function getRecords() {
+    return JSON.parse(localStorage.getItem(getStorageKey())) || [];
 }
 
-function calculateAbsentees(currentLogs) {
-    let checkedPins = new Set(currentLogs.map(item => parseInt(item.pin)));
-    let absentees = [];
+function saveRecords(data) {
+    localStorage.setItem(getStorageKey(), JSON.stringify(data));
+}
+
+// ==========================================
+// CONTROL INTERFACES & TAB SWAPPING MODES
+// ==========================================
+function switchInputMode(targetMode) {
+    activeMode = targetMode;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.mode-container').forEach(m => m.style.display = 'none');
+    
+    if(qrScannerInstance) {
+        qrScannerInstance.stop().catch(()=>{});
+        qrScannerInstance = null;
+    }
+
+    if (targetMode === 'manual') {
+        document.getElementById('tabManual').classList.add('active');
+        document.getElementById('modeManualInput').style.display = 'block';
+    } else if (targetMode === 'grid') {
+        document.getElementById('tabGrid').classList.add('active');
+        document.getElementById('modeGridInput').style.display = 'block';
+        renderMassGrid();
+    } else if (targetMode === 'scanner') {
+        document.getElementById('tabScanner').classList.add('active');
+        document.getElementById('modeScannerInput').style.display = 'block';
+        startCameraScanner();
+    }
+}
+
+function processAttendanceRegistration(pinInput) {
+    const pin = String(pinInput).padStart(3, '0');
+    if (parseInt(pin) > strength || parseInt(pin) === 0 || isNaN(parseInt(pin))) {
+        return { ok: false, msg: "Out of bounds roll number range." };
+    }
+
+    let currentLogs = getRecords();
+    const activePeriod = document.getElementById('periodDropdown').value;
+    const currentSubject = document.getElementById('subjectInput').value || "General Class";
+
+    if (currentLogs.some(r => r.pin === pin && r.period === activePeriod)) {
+        return { ok: false, msg: `PIN ${pin} already checked for ${activePeriod}` };
+    }
+
+    const stamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    currentLogs.push({ pin, period: activePeriod, subject: currentSubject, time: stamp });
+    saveRecords(currentLogs);
+    
+    return { ok: true, msg: `Registered Student PIN ${pin}` };
+}
+
+function markManualAttendance() {
+    const input = document.getElementById('rollInput');
+    const response = processAttendanceRegistration(input.value.trim());
+    showToast(response.msg, !response.ok);
+    if(response.ok) {
+        input.value = "";
+        updateUI();
+    }
+}
+
+// Mode 2: Grid Checkbox Generator
+function renderMassGrid() {
+    const container = document.getElementById('massCheckboxGrid');
+    container.innerHTML = "";
+    const activePeriod = document.getElementById('periodDropdown').value;
+    const activeCheckedSet = new Set(getRecords().filter(r => r.period === activePeriod).map(r => parseInt(r.pin)));
 
     for (let i = 1; i <= strength; i++) {
-        if (!checkedPins.has(i)) {
-            absentees.push(String(i).padStart(3, '0'));
+        const pinString = String(i).padStart(3, '0');
+        const checkedState = activeCheckedSet.has(i) ? "checked" : "";
+        
+        const block = document.createElement('div');
+        block.className = "check-tile";
+        block.innerHTML = `
+            <input type="checkbox" id="grid_chk_${i}" class="mass-grid-checkbox" value="${pinString}" ${checkedState}>
+            <label for="grid_chk_${i}" class="tile-label">${pinString}</label>
+        `;
+        container.appendChild(block);
+    }
+}
+
+function submitMassGridAttendance() {
+    const activePeriod = document.getElementById('periodDropdown').value;
+    const currentSubject = document.getElementById('subjectInput').value || "General Class";
+    let logs = getRecords().filter(r => r.period !== activePeriod);
+
+    const checkBoxesSelected = document.querySelectorAll('.mass-grid-checkbox:checked');
+    const stamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    checkBoxesSelected.forEach(box => {
+        logs.push({ pin: box.value, period: activePeriod, subject: currentSubject, time: stamp });
+    });
+
+    saveRecords(logs);
+    updateUI();
+    showToast("Grid parameters mapped successfully on browser memory cache.");
+}
+
+// Mode 3: Local QR Code Camera Scanning Initialization
+function startCameraScanner() {
+    qrScannerInstance = new Html5Qrcode("qrReaderView");
+    qrScannerInstance.start(
+        { facingMode: "environment" },
+        { fps: 12, qrbox: { width: 220, height: 220 } },
+        (decodedText) => {
+            const res = processAttendanceRegistration(decodedText.trim());
+            if (res.ok) {
+                showToast(res.msg, false);
+                if(navigator.vibrate) navigator.vibrate(80);
+                updateUI();
+            }
+        },
+        () => {} // Drop verbose runtime loop stream exception traces
+    ).catch(() => {
+        showToast("Webcam initialization failed. Check browser privacy settings.", true);
+    });
+}
+
+// ==========================================
+// CALCULATE DYNAMIC DATA & SMART INSIGHTS
+// ==========================================
+function updateUI() {
+    const allRecords = getRecords();
+    const activePeriod = document.getElementById('periodDropdown').value;
+    const filteredDataset = allRecords.filter(r => r.period === activePeriod);
+    
+    const tableBody = document.getElementById('attendanceTable');
+    tableBody.innerHTML = "";
+
+    filteredDataset.forEach((item) => {
+        const trueGlobalIndex = allRecords.findIndex(r => r.pin === item.pin && r.period === item.period);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${item.pin}</strong></td>
+            <td>${item.subject}</td>
+            <td>${item.period}</td>
+            <td>${item.time}</td>
+            <td><i class="fas fa-trash row-del" onclick="removeSingleRow(${trueGlobalIndex})"></i></td>
+        `;
+        tableBody.appendChild(tr);
+    });
+
+    runAnalyticsCalculations(filteredDataset);
+    if(activeMode === "grid") renderMassGrid();
+}
+
+function removeSingleRow(index) {
+    let logs = getRecords();
+    logs.splice(index, 1);
+    saveRecords(logs);
+    updateUI();
+    showToast("Record clear.");
+}
+
+function runAnalyticsCalculations(periodData) {
+    const totalPresent = periodData.length;
+    const rate = strength > 0 ? Math.round((totalPresent / strength) * 100) : 0;
+
+    document.getElementById('metricPercentage').textContent = `${rate}%`;
+    document.getElementById('metricRatio').textContent = `${totalPresent} / ${strength}`;
+    document.getElementById('analyticsProgressBar').style.width = `${rate}%`;
+
+    // Calculate Missing Absentees Array
+    const checkedPins = new Set(periodData.map(r => parseInt(r.pin)));
+    let absentArray = [];
+    for(let i = 1; i <= strength; i++) {
+        if(!checkedPins.has(i)) absentArray.push(String(i).padStart(3, '0'));
+    }
+
+    const absenteeContainer = document.getElementById('absenteeList');
+    if(totalPresent === 0) {
+        absenteeContainer.innerHTML = "<em>No student inputs submitted yet for this period timeframe.</em>";
+    } else {
+        absenteeContainer.innerHTML = absentArray.length > 0
+            ? `<strong>Missing Absentees (${absentArray.length}):</strong> ` + absentArray.join(', ')
+            : "<strong>Perfect Attendance Met!</strong>";
+    }
+
+    runRiskEvaluationAnalytics();
+}
+
+// Flags students who have missed multiple classes across local memory
+function runRiskEvaluationAnalytics() {
+    let trackingTallyMap = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith(`gioe_data_${branch}_`)) {
+            const records = JSON.parse(localStorage.getItem(key)) || [];
+            records.forEach(r => {
+                trackingTallyMap[r.pin] = (trackingTallyMap[r.pin] || 0) + 1;
+            });
         }
     }
 
-    const outputElement = document.getElementById('absenteeList');
-    if (currentLogs.length === 0) {
-        outputElement.innerHTML = "Mark attendance to see missing students...";
+    let flaggedList = [];
+    for(let pin in trackingTallyMap) {
+        if(trackingTallyMap[pin] >= 3) flaggedList.push(`#${pin}`);
+    }
+
+    const alertPanel = document.getElementById('highRiskAlert');
+    if(flaggedList.length > 0) {
+        alertPanel.style.display = "block";
+        alertPanel.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <strong>Frequent Absentee Alert:</strong> Students [ ${flaggedList.join(', ')} ] have missed multiple recorded sessions on this device.`;
     } else {
-        outputElement.innerHTML = absentees.length > 0 
-            ? `<strong>Missing (${absentees.length}):</strong> ` + absentees.join(', ') 
-            : "Everyone Present!";
+        alertPanel.style.display = "none";
     }
 }
 
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('active');
-}
-
-function buildHistory() {
-    const container = document.getElementById('historyList');
-    container.innerHTML = "";
-    let systemDates = [];
+// ==========================================
+// HISTORY DRAWER & DATA EXPORTS
+// ==========================================
+function buildLocalHistoryList() {
+    const listContainer = document.getElementById('historyList');
+    listContainer.innerHTML = "";
+    let extractedDates = [];
 
     for (let i = 0; i < localStorage.length; i++) {
-        const targetKey = localStorage.key(i);
-        if (targetKey.startsWith(`gioe_${branch}_`)) {
-            const extractDate = targetKey.replace(`gioe_${branch}_`, "");
-            systemDates.push(extractDate);
+        const key = localStorage.key(i);
+        if (key.startsWith(`gioe_data_${branch}_`)) {
+            extractedDates.push(key.replace(`gioe_data_${branch}_`, ""));
         }
     }
 
-    // Ensure unique values sorted symmetrically
-    systemDates = [...new Set(systemDates)].sort().reverse();
+    extractedDates = [...new Set(extractedDates)].sort().reverse();
 
-    if (systemDates.length === 0) {
-        container.innerHTML = `<p style='color:#777; font-size:0.9rem; text-align:center;'>No historic logs located</p>`;
+    if(extractedDates.length === 0) {
+        listContainer.innerHTML = "<p style='padding:15px; color:#999; font-size:0.85rem;'>No logs stored locally.</p>";
         return;
     }
 
-    systemDates.forEach(dateStr => {
-        const historicRow = document.createElement('div');
-        historicRow.className = 'history-item';
-        historicRow.innerHTML = `
-            <span style="cursor:pointer; font-weight:600;" onclick="viewHistoricDate('${dateStr}')">${dateStr}</span>
-            <i class="fas fa-share-alt share-btn" onclick="shareData('${dateStr}')"></i>
+    extractedDates.forEach(date => {
+        const div = document.createElement('div');
+        div.className = "history-item";
+        div.innerHTML = `
+            <span style="cursor:pointer; font-weight:600;" onclick="loadHistoricLogsDate('${date}')">${date}</span>
+            <i class="fas fa-trash-alt row-del" onclick="purgeEntireDayLog('${date}')"></i>
         `;
-        container.appendChild(historicRow);
+        listContainer.appendChild(div);
     });
 }
 
-function viewHistoricDate(selectedDate) {
-    viewingDate = selectedDate;
-    document.getElementById('viewingDateLabel').textContent = selectedDate;
+function loadHistoricLogsDate(date) {
+    viewingDate = date;
+    document.getElementById('viewingDateLabel').textContent = date;
     updateUI();
     toggleSidebar();
-    showToast(`Viewing data from ${selectedDate}`);
+    showToast(`Displaying device logs retrieved from ${date}`);
 }
 
-function filterHistory() {
-    const val = document.getElementById('historySearch').value.toLowerCase();
-    const records = document.getElementsByClassName('history-item');
-    Array.from(records).forEach(item => {
-        const matches = item.textContent.toLowerCase().includes(val);
-        item.style.display = matches ? "flex" : "none";
-    });
-}
-
-function downloadExcel() {
-    const logs = JSON.parse(localStorage.getItem(`gioe_${branch}_${viewingDate}`)) || [];
-    if (logs.length === 0) return showToast("No data available to export", true);
-    
-    let csv = "PIN,PERIOD,TIME\n" + logs.map(l => `${l.pin},${l.period},${l.time}`).join("\n");
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `Attendance_${branch}_${viewingDate}.csv`;
-    a.click();
-}
-
-async function shareData(date) {
-    const logs = JSON.parse(localStorage.getItem(`gioe_${branch}_${date}`)) || [];
-    if(logs.length === 0) return showToast("No records found", true);
-    
-    let text = `📊 *ATTENDANCE: ${branch}*\n📅 *Date:* ${date}\n\n`;
-    const distinctPeriods = [...new Set(logs.map(l => l.period))];
-    
-    distinctPeriods.forEach(p => {
-        text += `*${p}:*\n` + logs.filter(l => l.period === p).map(l => l.pin).join(", ") + "\n\n";
-    });
-
-    if (navigator.share) { 
-        try { 
-            await navigator.share({ text }); 
-        } catch(e) { 
-            copyFallback(text); 
-        } 
-    } else { 
-        copyFallback(text); 
+function purgeEntireDayLog(date) {
+    if(confirm(`Are you sure you want to completely erase tracking records on this device for ${date}?`)) {
+        localStorage.removeItem(`gioe_data_${branch}_${date}`);
+        if(viewingDate === date) viewingDate = today;
+        document.getElementById('viewingDateLabel').textContent = viewingDate;
+        updateUI();
+        buildLocalHistoryList();
     }
 }
 
-function copyFallback(t) {
-    const el = document.createElement('textarea'); 
-    el.value = t; 
-    document.body.appendChild(el);
-    el.select(); 
-    document.execCommand('copy'); 
-    document.body.removeChild(el);
-    showToast("📋 Copied text dump directly to Clipboard!");
+function downloadExcel() {
+    const logs = getRecords();
+    if (logs.length === 0) return showToast("No logging entry parameters generated to map document columns.", true);
+    
+    let csv = "PIN,SUBJECT,PERIOD,TIMESTAMP\n" + logs.map(l => `"${l.pin}","${l.subject}","${l.period}","${l.time}"`).join("\n");
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const dynamicLinkElement = document.createElement('a');
+    dynamicLinkElement.href = URL.createObjectURL(blob);
+    dynamicLinkElement.download = `Attendance_Report_${branch}_${viewingDate}.csv`;
+    dynamicLinkElement.click();
 }
 
-function clearDate() { 
-    if(confirm(`Are you certain you wish to purge records for ${viewingDate}?`)) { 
-        localStorage.removeItem(`gioe_${branch}_${viewingDate}`); 
-        updateUI(); 
-        buildHistory();
-    } 
+// ==========================================
+// CORE INTERFACE UTILITIES (UX ENHANCEMENTS)
+// ==========================================
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('active'); }
+function filterHistory() {
+    const query = document.getElementById('historySearch').value.toLowerCase();
+    document.querySelectorAll('.history-item').forEach(item => {
+        item.style.display = item.textContent.toLowerCase().includes(query) ? "flex" : "none";
+    });
 }
 
-function showToast(msg, isError = false) {
-    const toast = document.getElementById('toast');
-    toast.textContent = msg;
-    toast.style.background = isError ? "var(--error)" : "var(--success)";
-    toast.style.display = "block";
-    setTimeout(() => { toast.style.display = "none"; }, 2500);
+function toggleDarkMode() {
+    const activeTheme = document.documentElement.getAttribute('data-theme');
+    const nextTheme = activeTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    localStorage.setItem('gioe_pure_theme', nextTheme);
+    document.getElementById('themeBtn').innerHTML = nextTheme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+}
+
+function evaluateThemeOnLoad() {
+    const activeTheme = localStorage.getItem('gioe_pure_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', activeTheme);
+    document.getElementById('themeBtn').innerHTML = activeTheme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+}
+
+function showToast(text, isError = false) {
+    const container = document.getElementById('toast');
+    container.textContent = text;
+    container.style.background = isError ? "var(--error)" : "var(--success)";
+    container.style.display = "block";
+    setTimeout(() => { container.style.display = "none"; }, 3000);
 }
