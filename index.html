@@ -45,32 +45,32 @@
             <h1 id="branchTitle">Portal</h1>
             <small id="liveDate"></small>
         </div>
-        <button class="switch-btn" onclick="location.reload()">Switch</button>
+        <button class="switch-btn" onclick="resetApp()">Switch</button>
     </nav>
 
     <div id="sidebar" class="sidebar">
         <div class="sidebar-header">
-            <h3>History</h3>
+            <h3>History Logs</h3>
             <span onclick="toggleSidebar()" class="close-x">&times;</span>
         </div>
-        <input type="text" id="historySearch" placeholder="Search date..." onkeyup="filterHistory()">
+        <input type="text" id="historySearch" placeholder="Search date (DD-MM-YYYY)..." onkeyup="filterHistory()">
         <div id="historyList"></div>
     </div>
 
     <main class="container">
-        <div id="statusBanner" class="status-banner">Checking Schedule...</div>
+        <div id="statusBanner" class="status-banner">System Active</div>
 
         <div class="card">
             <div class="input-group">
                 <span class="prefix" id="prefixLabel">PIN:</span>
                 <input type="text" id="rollInput" placeholder="000" maxlength="3" inputmode="numeric">
-                <button id="submitBtn">MARK</button>
+                <button id="submitBtn" onclick="markAttendance()">MARK</button>
             </div>
         </div>
 
         <div class="card">
             <div class="table-header">
-                <h3 id="viewingDate">Today</h3>
+                <h3 id="viewingDateLabel">Today</h3>
                 <div class="actions">
                     <button onclick="downloadExcel()" class="excel-btn"><i class="fas fa-file-excel"></i> Excel</button>
                     <button onclick="clearDate()" class="del-btn">Clear All</button>
@@ -79,7 +79,12 @@
             <div class="table-responsive">
                 <table>
                     <thead>
-                        <tr><th>PIN</th><th>PERIOD</th><th>TIME</th><th>DEL</th></tr>
+                        <tr>
+                            <th>PIN</th>
+                            <th>PERIOD</th>
+                            <th>TIME</th>
+                            <th>DEL</th>
+                        </tr>
                     </thead>
                     <tbody id="attendanceTable"></tbody>
                 </table>
@@ -93,6 +98,7 @@
     </main>
 
     <div id="toast" class="toast"></div>
+
     <script src="script.js"></script>
 </body>
 </html>
